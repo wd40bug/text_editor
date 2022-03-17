@@ -1,5 +1,6 @@
-use text_editor::run;
+use text_editor::editor::Editor;
 
 fn main() {
-    run();
+    let mut editor = Editor::default();
+    editor.run();
 }
