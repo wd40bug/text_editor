@@ -257,6 +257,7 @@ dependencies = [
  "log",
  "simple-logging",
  "termion",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -275,6 +276,12 @@ dependencies = [
  "redox_syscall 0.1.57",
  "winapi",
 ]
+
+[[package]]
+name = "unicode-segmentation"
+version = "1.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e8820f5d777f6224dc4be3632222971ac30164d4a258d595640799554ebfd99"
 
 [[package]]
 name = "unicode-xid"

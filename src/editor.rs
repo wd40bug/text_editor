@@ -68,7 +68,7 @@ impl Editor {
                 };
                 println!(
                     "{}\r",
-                    &self.document.rows[row + self.offset.y - 1].content[self.offset.x..=end]
+                    &self.document.rows[row + self.offset.y - 1].to_string(self.offset.x..=end)
                 );
             } else {
                 println!("~\r");
@@ -187,7 +187,11 @@ impl Editor {
                     } else {
                         y = y.saturating_add(1);
                         if x > self.document.rows[y - 1].content.len() {
-                            x = self.document.rows[y - 1].content.len();
+                            x = self.terminal.width as usize + off.x - 1;
+                            self.offset.x = self.document.rows[y - 1]
+                                .content
+                                .len()
+                                .saturating_sub(self.terminal.width as usize);
                         }
                     }
                 }
