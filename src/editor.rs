@@ -52,12 +52,19 @@ impl Editor {
             } else if row == self.terminal.height as usize {
                 self.progress_bar();
             } else if (1..=self.document.rows.len()).contains(&(row + self.offset.y)) {
+                if self.document.rows[row + self.offset.y - 1].content.len() == 0 {
+                    println!("");
+                    continue;
+                }
                 let end = if self.document.rows[row + self.offset.y - 1].content.len()
                     > self.terminal.width as usize + self.offset.x - 2
                 {
                     self.terminal.width as usize + self.offset.x - 2
                 } else {
-                    self.document.rows[row + self.offset.y - 1].content.len() - 1
+                    self.document.rows[row + self.offset.y - 1]
+                        .content
+                        .len()
+                        .saturating_sub(1)
                 };
                 println!(
                     "{}\r",
@@ -172,7 +179,7 @@ impl Editor {
             }
             Key::Down => {
                 if y < self.document.rows.len() {
-                    if y >= self.terminal.height as usize - 2 {
+                    if y >= self.terminal.height as usize + off.y - 2 {
                         self.offset.y += 1;
                         if x > self.document.rows[y].content.len() {
                             x = self.document.rows[y].content.len();
@@ -191,10 +198,7 @@ impl Editor {
                     self.offset.y += self.terminal.height as usize - 3;
                     off.y + 1
                 } else {
-                    self.offset.y = self.document.rows.len() - self.terminal.height as usize - 1;
-                    (self.document.rows.len() / self.terminal.height as usize)
-                        * self.terminal.height as usize
-                        - self.document.rows.len()
+                    self.document.rows.len()
                 }
             }
             Key::End => {
