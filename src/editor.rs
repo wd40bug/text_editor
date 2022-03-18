@@ -1,5 +1,5 @@
 use termion::{
-    color::{self, Black, Blue, LightMagenta, Reset, Rgb, White},
+    color::{self, Black, Blue, Reset, White},
     event::Key,
     input::TermRead,
 };
@@ -192,7 +192,14 @@ impl Editor {
                     }
                 }
             }
-            Key::PageUp => {}
+            Key::PageUp => {
+                y = if y as isize - (self.terminal.height as isize - 3) > 0 {
+                    self.offset.y -= self.terminal.height as usize - 3;
+                    off.y + 1
+                } else {
+                    1
+                }
+            }
             Key::PageDown => {
                 y = if y + (self.terminal.height as usize - 3) < self.document.rows.len() {
                     self.offset.y += self.terminal.height as usize - 3;
