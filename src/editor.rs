@@ -1,22 +1,24 @@
-use std::io::{stdout, Stdout, Write};
 use termion::{
+    color::{self, Black, Blue, LightMagenta, Reset, Rgb, White},
     event::Key,
     input::TermRead,
-    raw::{IntoRawMode, RawTerminal},
 };
 
-use crate::terminal::Terminal;
+use crate::{document::Document, terminal::Terminal, Position};
 
 pub struct Editor {
-    stdout: RawTerminal<Stdout>,
     should_exit: bool,
     terminal: Terminal,
+    cursor_position: Position,
+    document: Document,
+    offset: Position,
 }
 impl Editor {
     ///# Panics
     ///
     /// will panic if something is wrong with the inputted key
     pub fn run(&mut self) {
+        Terminal::clear_screen();
         loop {
             self.render();
             let c = Self::get_next_key();
@@ -26,8 +28,9 @@ impl Editor {
                 panic!()
             }
             if self.should_exit {
-                self.clear_screen();
+                Terminal::clear_screen();
                 println!("goodbye! \r");
+                Terminal::flush();
                 break;
             }
         }
@@ -39,20 +42,75 @@ impl Editor {
             }
         }
     }
-    fn render(&mut self) {
-        self.clear_screen();
-        self.draw_tildes();
-    }
-    fn clear_screen(&mut self) {
-        print!("{}{}", termion::clear::All, termion::cursor::Goto(1, 1));
-        self.stdout.flush().unwrap();
-    }
-    fn draw_tildes(&mut self) {
-        for _ in 0..self.terminal.height {
-            println!("~\r");
+    pub fn draw_rows(&self) {
+        for row in 0..self.terminal.height as usize {
+            Terminal::clear_row();
+            if row == 0 {
+                self.welcome();
+            } else if row == self.terminal.height as usize - 1 {
+                self.message_bar();
+            } else if row == self.terminal.height as usize {
+                self.progress_bar();
+            } else if (1..=self.document.rows.len()).contains(&(row + self.offset.y)) {
+                let end = if self.document.rows[row + self.offset.y - 1].content.len()
+                    > self.terminal.width as usize + self.offset.x - 2
+                {
+                    self.terminal.width as usize + self.offset.x - 2
+                } else {
+                    self.document.rows[row + self.offset.y - 1].content.len() - 1
+                };
+                println!(
+                    "{}\r",
+                    &self.document.rows[row + self.offset.y - 1].content[self.offset.x..=end]
+                );
+            } else {
+                println!("~\r");
+            }
         }
-        print!("{}", termion::cursor::Goto(1, 1));
-        self.stdout.flush().unwrap();
+        Terminal::move_cursor(1, 1);
+    }
+    fn welcome(&self) {
+        Terminal::move_cursor(self.terminal.width / 2 - 1, 0);
+        println!(
+            "{}Welcome to Saphire!{}\r",
+            color::Fg(Blue),
+            color::Fg(Reset)
+        );
+    }
+    fn progress_bar(&self) {}
+    fn message_bar(&self) {
+        print!(
+            "{}{}\r",
+            color::Bg(White),
+            " ".repeat(self.terminal.width as usize)
+        );
+        print!(
+            "{}{} lines: {} bx: {} by: {} tx: {} ty: {} terminal width: {} terminal height: {} x offset: {} y offset: {} line length: {}{}{}\r",
+            color::Fg(Black),
+            self.document
+                .path
+                .clone()
+                .into_os_string()
+                .into_string()
+                .unwrap(),
+            self.document.rows.len(),
+            self.cursor_position.x + self.offset.x,
+            self.cursor_position.y + self.offset.y,
+            self.cursor_position.x,
+            self.cursor_position.y,
+            self.terminal.width,
+            self.terminal.height,
+            self.offset.x,
+            self.offset.y,
+            self.document.rows[self.cursor_position.y+self.offset.y - 1].content.len(),
+            color::Bg(Reset),
+            color::Fg(Reset),
+        );
+    }
+    fn render(&mut self) {
+        self.draw_rows();
+        Terminal::position_cursor(&self.cursor_position);
+        Terminal::flush();
     }
     fn decode_key(&mut self, key: Key) {
         match key {
@@ -60,23 +118,108 @@ impl Editor {
                 println!("\r");
                 self.should_exit = true;
             }
-            Key::Char(x) => {
-                print!("{x}");
-                if x == '\n' {
-                    print!("\r");
+            Key::Char(_) => (),
+            Key::Up
+            | Key::Left
+            | Key::Right
+            | Key::Down
+            | Key::PageUp
+            | Key::PageDown
+            | Key::End
+            | Key::Home => self.move_cursor(key),
+            _ => (),
+        }
+        Terminal::flush();
+    }
+    fn move_cursor(&mut self, key: Key) {
+        let Position { mut x, mut y } = self.cursor_position;
+        let off = self.offset.clone();
+        y += off.y;
+        x += off.x;
+        match key {
+            Key::Up => {
+                if y > 1 {
+                    if y - self.offset.y == 1 {
+                        self.offset.y -= 1;
+                        if x > self.document.rows[y].content.len() {
+                            x = self.document.rows[y].content.len();
+                        }
+                    } else {
+                        y = y.saturating_sub(1);
+                        if x > self.document.rows[y - 1].content.len() {
+                            x = self.document.rows[y - 1].content.len();
+                        }
+                    }
                 }
+            }
+            Key::Left => {
+                if x > 0 {
+                    if x - self.offset.x == 0 {
+                        self.offset.x -= 1;
+                    } else {
+                        x = x.saturating_sub(1);
+                    }
+                }
+            }
+            Key::Right => {
+                if x < self.document.rows[y - 1].content.len() as usize {
+                    if x > self.terminal.width as usize + off.x - 3 {
+                        self.offset.x += 1;
+                    } else {
+                        x = x.saturating_add(1);
+                    }
+                }
+            }
+            Key::Down => {
+                if y < self.document.rows.len() {
+                    if y >= self.terminal.height as usize - 2 {
+                        self.offset.y += 1;
+                        if x > self.document.rows[y].content.len() {
+                            x = self.document.rows[y].content.len();
+                        }
+                    } else {
+                        y = y.saturating_add(1);
+                        if x > self.document.rows[y - 1].content.len() {
+                            x = self.document.rows[y - 1].content.len();
+                        }
+                    }
+                }
+            }
+            Key::PageUp => {}
+            Key::PageDown => {
+                y = if y + (self.terminal.height as usize - 3) < self.document.rows.len() {
+                    self.offset.y += self.terminal.height as usize - 3;
+                    off.y + 1
+                } else {
+                    self.offset.y = self.document.rows.len() - self.terminal.height as usize - 1;
+                    (self.document.rows.len() / self.terminal.height as usize)
+                        * self.terminal.height as usize
+                        - self.document.rows.len()
+                }
+            }
+            Key::End => {
+                x = self.terminal.width as usize - 2 + off.x;
+                self.offset.x =
+                    self.document.rows[y - 1].content.len() - self.terminal.width as usize + 2
+            }
+            Key::Home => {
+                x = off.x;
+                self.offset.x = 0;
             }
             _ => (),
         }
-        self.stdout.flush().unwrap();
+        self.cursor_position = Position {
+            x: x - off.x,
+            y: y - off.y,
+        };
     }
-}
-impl Default for Editor {
-    fn default() -> Self {
+    pub fn new(doc: Document) -> Editor {
         Editor {
-            stdout: stdout().into_raw_mode().unwrap(),
             should_exit: false,
             terminal: Terminal::new(termion::terminal_size().unwrap()),
+            cursor_position: Position { x: 1, y: 1 },
+            document: doc,
+            offset: Position { x: 0, y: 0 },
         }
     }
 }
