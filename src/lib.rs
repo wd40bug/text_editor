@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 pub mod document;
 pub mod editor;
 pub mod terminal;
@@ -5,4 +7,17 @@ pub mod terminal;
 pub struct Position {
     x: usize,
     y: usize,
+}
+pub struct StatusMessage {
+    pub message: String,
+    pub time: Instant,
+}
+impl StatusMessage {
+    #[must_use]
+    pub fn new(message: String) -> StatusMessage {
+        StatusMessage {
+            message,
+            time: Instant::now(),
+        }
+    }
 }
