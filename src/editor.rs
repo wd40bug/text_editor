@@ -162,7 +162,7 @@ impl Editor {
                             break;
                         }
                         Key::Char(x) => {
-                            print!("{x}");
+                            print!("{}", x);
                             message.push(x);
                             stdout().flush().unwrap();
                         }
@@ -191,7 +191,7 @@ impl Editor {
         }
         Terminal::flush();
     }
-    fn up(&mut self, x: usize, y: usize, off: &Position) -> (usize, usize) {
+    fn up(&mut self, x: usize, y: usize, off: &Position) -> Position {
         let mut x = x;
         let mut y = y;
         if y > 1 {
@@ -216,9 +216,9 @@ impl Editor {
                 }
             }
         }
-        (x, y)
+        Position { x, y }
     }
-    fn left(&mut self, x: usize, y: usize, _off: &Position) -> (usize, usize) {
+    fn left(&mut self, x: usize, y: usize, _off: &Position) -> Position {
         let mut x = x;
         if x > 0 {
             if x - self.offset.x == 0 {
@@ -227,9 +227,9 @@ impl Editor {
                 x = x.saturating_sub(1);
             }
         }
-        (x, y)
+        Position { x, y }
     }
-    fn right(&mut self, x: usize, y: usize, off: &Position) -> (usize, usize) {
+    fn right(&mut self, x: usize, y: usize, off: &Position) -> Position {
         let mut x = x;
         if x < self.document.rows[y - 1].content.len() as usize {
             if x > self.terminal.width as usize + off.x - 3 {
@@ -238,9 +238,9 @@ impl Editor {
                 x = x.saturating_add(1);
             }
         }
-        (x, y)
+        Position { x, y }
     }
-    fn down(&mut self, x: usize, y: usize, off: &Position) -> (usize, usize) {
+    fn down(&mut self, x: usize, y: usize, off: &Position) -> Position {
         let mut x = x;
         let mut y = y;
         if y < self.document.rows.len() {
@@ -265,7 +265,7 @@ impl Editor {
                 }
             }
         }
-        (x, y)
+        Position { x, y }
     }
     #[allow(clippy::cast_possible_wrap)]
     fn move_cursor(&mut self, key: Key) {
@@ -274,10 +274,10 @@ impl Editor {
         y += off.y;
         x += off.x;
         match key {
-            Key::Up => (x, y) = self.up(x, y, &off),
-            Key::Left => (x, y) = self.left(x, y, &off),
-            Key::Right => (x, y) = self.right(x, y, &off),
-            Key::Down => (x, y) = self.down(x, y, &off),
+            Key::Up => Position { x, y } = self.up(x, y, &off),
+            Key::Left => Position { x, y } = self.left(x, y, &off),
+            Key::Right => Position { x, y } = self.right(x, y, &off),
+            Key::Down => Position { x, y } = self.down(x, y, &off),
             Key::PageUp => {
                 y = if y as isize - (self.terminal.height as isize - 3) > 0 {
                     self.offset.y -= self.terminal.height as usize - 3;
@@ -295,9 +295,14 @@ impl Editor {
                 }
             }
             Key::End => {
-                x = self.terminal.width as usize - 2 + off.x;
-                self.offset.x =
-                    self.document.rows[y - 1].content.len() - self.terminal.width as usize + 2;
+                if self.document.rows[y - 1].content.len() > self.terminal.width as usize {
+                    x = self.terminal.width as usize - 2 + off.x;
+                    self.offset.x =
+                        self.document.rows[y - 1].content.len() - self.terminal.width as usize + 2;
+                } else {
+                    x = self.document.rows[y - 1].content.len() + off.x;
+                    self.offset.x = 0;
+                }
             }
             Key::Home => {
                 x = off.x;
