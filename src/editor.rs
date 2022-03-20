@@ -21,6 +21,7 @@ pub struct Editor {
     message: StatusMessage,
 }
 impl Editor {
+    //RUN
     ///# Panics
     ///
     /// will panic if something is wrong with the inputted key
@@ -42,12 +43,19 @@ impl Editor {
             }
         }
     }
+    //STATIC
     fn get_next_key() -> Result<Key, std::io::Error> {
         loop {
             if let Some(key) = std::io::stdin().lock().keys().next() {
                 return key;
             }
         }
+    }
+    //RENDERING
+    fn render(&mut self) {
+        self.draw_rows();
+        Terminal::position_cursor(&self.cursor_position);
+        Terminal::flush();
     }
     pub fn draw_rows(&mut self) {
         print!("{}", termion::cursor::Hide);
@@ -58,7 +66,7 @@ impl Editor {
             } else if row == self.terminal.height as usize - 1 {
                 self.message_bar();
             } else if row == self.terminal.height as usize {
-                self.progress_bar();
+                self.stats_bar();
             } else if (1..=self.document.rows.len()).contains(&(row + self.offset.y)) {
                 if self.document.rows[row + self.offset.y - 1]
                     .content
@@ -88,57 +96,23 @@ impl Editor {
         Terminal::move_cursor(1, 1);
         print!("{}", termion::cursor::Show);
     }
-    fn welcome(&self) {
-        Terminal::move_cursor(self.terminal.width / 2 - 1, 0);
-        println!(
-            "{}Welcome to Saphire!{}\r",
-            color::Fg(Blue),
-            color::Fg(Reset)
-        );
-    }
-    fn progress_bar(&mut self) {
-        print!("{}", self.message.message);
-        if Instant::now() - self.message.time > Duration::new(5, 0) {
-            if self.message_buffer.is_empty() {
-                self.message = StatusMessage::new("".to_string());
-            } else {
-                self.message = StatusMessage::new(self.message_buffer.remove(0));
-            }
+
+    //DECODE KEYS
+    fn scroll(&mut self) {
+        let Position { x, y } = self.cursor_position;
+        let mut off = &mut self.offset;
+        let width = self.terminal.width;
+        let height = self.terminal.height;
+        if y < off.y {
+            off.y = y;
+        } else if y >= off.y.saturating_add(height) {
+            off.y = y.saturating_sub(height).saturating_add(1);
         }
-    }
-    fn message_bar(&self) {
-        print!(
-            "{}{}\r",
-            color::Bg(White),
-            " ".repeat(self.terminal.width as usize)
-        );
-        println!(
-            "{}{} lines: {} bx: {} by: {} tx: {} ty: {} terminal width: {} terminal height: {} x offset: {} y offset: {} line length: {}{}{}\r",
-            color::Fg(Black),
-            self.document
-                .path
-                .clone()
-                .into_os_string()
-                .into_string()
-                .unwrap(),
-            self.document.rows.len(),
-            self.cursor_position.x + self.offset.x,
-            self.cursor_position.y + self.offset.y,
-            self.cursor_position.x,
-            self.cursor_position.y,
-            self.terminal.width,
-            self.terminal.height,
-            self.offset.x,
-            self.offset.y,
-            self.document.rows[self.cursor_position.y+self.offset.y - 1].content.len(),
-            color::Bg(Reset),
-            color::Fg(Reset),
-        );
-    }
-    fn render(&mut self) {
-        self.draw_rows();
-        Terminal::position_cursor(&self.cursor_position);
-        Terminal::flush();
+        if x < off.x {
+            off.x = x;
+        } else if x >= off.x.saturating_add(height) {
+            off.x = x.saturating_sub(height).saturating_add(1);
+        }
     }
     #[allow(clippy::match_same_arms, clippy::cast_possible_truncation)]
     fn decode_key(&mut self, key: Key) {
@@ -178,7 +152,12 @@ impl Editor {
                 }
                 Terminal::clear_row();
             }
-            Key::Char(_) => (),
+            Key::Char(x) => {
+                self.document.rows[self.cursor_position.y - 1]
+                    .content
+                    .insert(self.cursor_position.x, x.to_string());
+                self.cursor_position.x += 1;
+            }
             Key::Up
             | Key::Left
             | Key::Right
@@ -190,7 +169,90 @@ impl Editor {
             _ => (),
         }
         Terminal::flush();
+        self.scroll();
     }
+
+    //MOVE CURSOR
+    #[allow(clippy::cast_possible_wrap)]
+    fn move_cursor(&mut self, key: Key) {
+        let Position { mut x, mut y } = self.cursor_position;
+        match key {
+            Key::Up => y = y.saturating_sub(1),
+            Key::Down => y = y.saturating_add(1),
+            Key::Left => x = x.saturating_sub(1),
+            Key::Right => x = x.saturating_add(1),
+            _ => (),
+        }
+        self.cursor_position = Position { x, y }
+    }
+
+    //BARS
+    fn welcome(&self) {
+        Terminal::move_cursor(self.terminal.width / 2 - 1, 0);
+        println!(
+            "{}Welcome to Saphire!{}\r",
+            color::Fg(Blue),
+            color::Fg(Reset)
+        );
+    }
+    fn stats_bar(&mut self) {
+        print!("{}", self.message.message);
+        if Instant::now() - self.message.time > Duration::new(5, 0) {
+            if self.message_buffer.is_empty() {
+                self.message = StatusMessage::new("".to_string());
+            } else {
+                self.message = StatusMessage::new(self.message_buffer.remove(0));
+            }
+        }
+    }
+    fn message_bar(&self) {
+        print!(
+            "{}{}\r",
+            color::Bg(White),
+            " ".repeat(self.terminal.width as usize)
+        );
+        println!(
+            "{}{} lines: {} bx: {} by: {} tx: {} ty: {} terminal width: {} terminal height: {} x offset: {} y offset: {} line length: {}{}{}\r",
+            color::Fg(Black),
+            self.document
+                .path
+                .clone()
+                .into_os_string()
+                .into_string()
+                .unwrap(),
+            self.document.rows.len(),
+            self.cursor_position.x + self.offset.x,
+            self.cursor_position.y + self.offset.y,
+            self.cursor_position.x,
+            self.cursor_position.y,
+            self.terminal.width,
+            self.terminal.height,
+            self.offset.x,
+            self.offset.y,
+            self.document.rows[self.cursor_position.y+self.offset.y - 1].content.len(),
+            color::Bg(Reset),
+            color::Fg(Reset),
+        );
+    }
+
+    //CONSTRUCTOR!
+    ///# Panics
+    ///
+    /// panics if the terminal fails to initiate
+    #[must_use]
+    pub fn new(doc: Document) -> Editor {
+        Editor {
+            should_exit: false,
+            terminal: Terminal::new(termion::terminal_size().unwrap()),
+            cursor_position: Position { x: 1, y: 1 },
+            document: doc,
+            offset: Position { x: 0, y: 0 },
+            message_buffer: vec!["press ctrl+n to compose a status message".to_string()],
+            message: StatusMessage::new("HELP: ctrl + q to quit".to_string()),
+        }
+    }
+
+    //BAD FUNCTIONS!
     fn up(&mut self, x: usize, y: usize, off: &Position) -> Position {
         let mut x = x;
         let mut y = y;
@@ -266,69 +328,5 @@ impl Editor {
             }
         }
         Position { x, y }
-    }
-    #[allow(clippy::cast_possible_wrap)]
-    fn move_cursor(&mut self, key: Key) {
-        let Position { mut x, mut y } = self.cursor_position;
-        let off = self.offset.clone();
-        y += off.y;
-        x += off.x;
-        match key {
-            Key::Up => Position { x, y } = self.up(x, y, &off),
-            Key::Left => Position { x, y } = self.left(x, y, &off),
-            Key::Right => Position { x, y } = self.right(x, y, &off),
-            Key::Down => Position { x, y } = self.down(x, y, &off),
-            Key::PageUp => {
-                y = if y as isize - (self.terminal.height as isize) > 0 {
-                    self.offset.y -= self.terminal.height as usize - 3;
-                    off.y + 1
-                } else {
-                    self.offset.y = 0;
-                    1 + off.y
-                };
-            }
-            Key::PageDown => {
-                y = if y + (self.terminal.height as usize - 3) < self.document.rows.len() {
-                    self.offset.y += self.terminal.height as usize - 3;
-                    off.y + 1
-                } else {
-                    self.document.rows.len()
-                };
-            }
-            Key::End => {
-                if self.document.rows[y - 1].content.len() > self.terminal.width as usize {
-                    x = self.terminal.width as usize - 2 + off.x;
-                    self.offset.x =
-                        self.document.rows[y - 1].content.len() - self.terminal.width as usize + 2;
-                } else {
-                    x = self.document.rows[y - 1].content.len() + off.x;
-                    self.offset.x = 0;
-                }
-            }
-            Key::Home => {
-                x = off.x;
-                self.offset.x = 0;
-            }
-            _ => (),
-        }
-        self.cursor_position = Position {
-            x: x - off.x,
-            y: y - off.y,
-        };
-    }
-    ///# Panics
-    ///
-    /// panics if the terminal fails to initiate
-    #[must_use]
-    pub fn new(doc: Document) -> Editor {
-        Editor {
-            should_exit: false,
-            terminal: Terminal::new(termion::terminal_size().unwrap()),
-            cursor_position: Position { x: 1, y: 1 },
-            document: doc,
-            offset: Position { x: 0, y: 0 },
-            message_buffer: vec!["press ctrl+n to compose a status message".to_string()],
-            message: StatusMessage::new("HELP: ctrl + q to quit".to_string()),
-        }
     }
 }

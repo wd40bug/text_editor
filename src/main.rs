@@ -1,5 +1,5 @@
-use text_editor::{editor::Editor, document::Document};
 use clap::Parser;
+use text_editor::{document::Document, editor::Editor};
 
 fn main() {
     simple_logging::log_to_file("last log.log", log::LevelFilter::Debug).unwrap();
@@ -9,7 +9,7 @@ fn main() {
     editor.run();
 }
 #[derive(Parser)]
-struct Args{
+struct Args {
     #[clap(parse(from_os_str))]
     path: std::path::PathBuf,
 }
