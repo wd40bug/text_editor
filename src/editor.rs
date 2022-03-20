@@ -23,6 +23,7 @@ pub struct Editor {
     offset: Position,
     message_buffer: Vec<String>,
     message: StatusMessage,
+    unsaved_changes: bool,
 }
 impl Editor {
     //RUN
@@ -126,48 +127,33 @@ impl Editor {
                 println!("\r");
                 self.should_exit = true;
             }
-            Key::Ctrl('s') => {
-                self.document.save();
-            }
-            Key::Ctrl('n') => {
-                Terminal::move_cursor(1, self.terminal.height);
-                Terminal::clear_row();
-                let mut message = String::new();
-                print!("~");
-                stdout().flush().unwrap();
-                loop {
-                    let key = Self::get_next_key().unwrap();
-                    match key {
-                        Key::Esc => break,
-                        Key::Char('\n') => {
-                            self.message_buffer.push(message.clone());
-                            break;
-                        }
-                        Key::Char(x) => {
-                            print!("{}", x);
-                            message.push(x);
-                            stdout().flush().unwrap();
-                        }
-                        Key::Backspace => {
-                            message.pop();
-                            Terminal::move_cursor(message.len() as u16 + 2, self.terminal.height);
-                            print!(" ");
-                            Terminal::move_cursor(message.len() as u16 + 2, self.terminal.height);
-                            stdout().flush().unwrap();
-                        }
-                        _ => (),
+            Key::Ctrl('s') => match self.document.path {
+                Some(_) => {
+                    self.unsaved_changes = false;
+                    self.document.save();
+                }
+                None => {
+                    if let Some(path) = self.prompt("Save As") {
+                        self.document.save_as(path);
+                        self.unsaved_changes = false;
                     }
                 }
-                Terminal::clear_row();
+            },
+            Key::Ctrl('n') => {
+                if let Some(message) = self.prompt("Message") {
+                    self.message_buffer.push(message);
+                }
             }
             Key::Backspace => {
                 if self.cursor_position.x > 0 {
+                    self.unsaved_changes = true;
                     self.document.rows[self.cursor_position.y - 1]
                         .content
                         .remove(self.cursor_position.x - 1);
                     self.cursor_position.x -= 1;
                 } else {
                     if self.cursor_position.y > 1 {
+                        self.unsaved_changes = true;
                         let mut foo = self
                             .document
                             .rows
@@ -176,24 +162,35 @@ impl Editor {
                         self.document.rows[self.cursor_position.y - 2]
                             .content
                             .append(&mut foo);
+                        self.cursor_position.x =
+                            self.document.rows[self.cursor_position.y - 2].content.len();
+                        self.cursor_position.y = self.cursor_position.y - 1;
                     }
                 }
             }
             Key::Delete => {
                 if self.cursor_position.x
-                    < self.document.rows[self.cursor_position.y - 1].content.len() - 1
+                    < self.document.rows[self.cursor_position.y - 1]
+                        .content
+                        .len()
+                        .saturating_sub(1)
                 {
+                    self.unsaved_changes = true;
                     self.document.rows[self.cursor_position.y - 1]
                         .content
                         .remove(self.cursor_position.x + 1);
                 } else {
-                    let mut foo = self.document.rows.remove(self.cursor_position.y).content;
-                    self.document.rows[self.cursor_position.y - 1]
-                        .content
-                        .append(&mut foo);
+                    if self.cursor_position.y < self.document.rows.len() {
+                        self.unsaved_changes = true;
+                        let mut foo = self.document.rows.remove(self.cursor_position.y).content;
+                        self.document.rows[self.cursor_position.y - 1]
+                            .content
+                            .append(&mut foo);
+                    }
                 }
             }
             Key::Char('\n') => {
+                self.unsaved_changes = true;
                 if self.cursor_position.x
                     < self.document.rows[self.cursor_position.y - 1].content.len()
                 {
@@ -221,6 +218,7 @@ impl Editor {
                 self.cursor_position.x = 0;
             }
             Key::Char(x) => {
+                self.unsaved_changes = true;
                 self.document.rows[self.cursor_position.y - 1]
                     .content
                     .insert(self.cursor_position.x, x.to_string());
@@ -239,7 +237,37 @@ impl Editor {
         Terminal::flush();
         self.scroll();
     }
-
+    fn prompt(&mut self, query: &str) -> Option<String> {
+        Terminal::move_cursor(1, self.terminal.height + 1);
+        Terminal::clear_row();
+        let mut message = String::new();
+        print!("{}: ", query);
+        stdout().flush().unwrap();
+        loop {
+            let key = Self::get_next_key().unwrap();
+            match key {
+                Key::Esc => return None,
+                Key::Char('\n') => {
+                    break;
+                }
+                Key::Char(x) => {
+                    print!("{}", x);
+                    message.push(x);
+                    stdout().flush().unwrap();
+                }
+                Key::Backspace => {
+                    message.pop();
+                    Terminal::move_cursor(message.len() as u16 + 2, self.terminal.height + 1);
+                    print!(" ");
+                    Terminal::move_cursor(message.len() as u16 + 2, self.terminal.height + 1);
+                    stdout().flush().unwrap();
+                }
+                _ => (),
+            }
+        }
+        Terminal::clear_row();
+        Some(message)
+    }
     //MOVE CURSOR
     #[allow(clippy::cast_possible_wrap)]
     fn move_cursor(&mut self, key: Key) {
@@ -297,6 +325,7 @@ impl Editor {
         );
     }
     fn stats_bar(&mut self) {
+        Terminal::clear_row();
         print!("{}", self.message.message);
         if Instant::now() - self.message.time > Duration::new(5, 0) {
             if self.message_buffer.is_empty() {
@@ -313,14 +342,18 @@ impl Editor {
             " ".repeat(self.terminal.width as usize)
         );
         println!(
-            "{}{} lines: {} bx: {} by: {} tx: {} ty: {} terminal width: {} terminal height: {} x offset: {} y offset: {} line length: {}{}{}\r",
+            "{}{}{} lines: {} bx: {} by: {} tx: {} ty: {} terminal width: {} terminal height: {} x offset: {} y offset: {} line length: {}{}{}\r",
             color::Fg(Black),
-            self.document
-                .path
-                .clone()
-                .into_os_string()
-                .into_string()
-                .unwrap(),
+            if let Some(path) = &self.document.path{
+                path.clone().into_os_string().into_string().unwrap()
+            }else{
+                "None".to_string()
+            },
+            if self.unsaved_changes{
+                "*"
+            } else{
+                ""
+            },
             self.document.rows.len(),
             self.cursor_position.x + self.offset.x,
             self.cursor_position.y + self.offset.y,
@@ -345,11 +378,12 @@ impl Editor {
         Editor {
             should_exit: false,
             terminal: Terminal::new(termion::terminal_size().unwrap()),
-            cursor_position: Position { x: 1, y: 1 },
+            cursor_position: Position { x: 0, y: 1 },
             document: doc,
             offset: Position { x: 0, y: 0 },
             message_buffer: vec!["press ctrl+n to compose a status message".to_string()],
             message: StatusMessage::new("HELP: ctrl + q to quit".to_string()),
+            unsaved_changes: false,
         }
     }
 }

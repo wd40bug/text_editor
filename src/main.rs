@@ -11,5 +11,5 @@ fn main() {
 #[derive(Parser)]
 struct Args {
     #[clap(parse(from_os_str))]
-    path: std::path::PathBuf,
+    path: Option<std::path::PathBuf>,
 }
