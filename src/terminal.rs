@@ -17,7 +17,7 @@ impl Terminal {
     pub fn new(tuple: (u16, u16)) -> Terminal {
         Terminal {
             width: tuple.0,
-            height: tuple.1.saturating_sub(1),
+            height: tuple.1.saturating_sub(2),
             _stdout: stdout().into_raw_mode().unwrap(),
         }
     }

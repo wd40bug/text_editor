@@ -49,6 +49,7 @@ impl Document {
             });
             log::info!("{:?}", rows.last().unwrap());
         }
+        log::info!("{}", rows.len());
         for row in &mut rows {
             row.parse_specials();
         }

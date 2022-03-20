@@ -54,7 +54,10 @@ impl Editor {
     //RENDERING
     fn render(&mut self) {
         self.draw_rows();
-        Terminal::position_cursor(&self.cursor_position);
+        Terminal::move_cursor(
+            self.cursor_position.x.saturating_sub(self.offset.x) as u16,
+            self.cursor_position.y.saturating_sub(self.offset.y) as u16,
+        );
         Terminal::flush();
     }
     pub fn draw_rows(&mut self) {
@@ -63,7 +66,7 @@ impl Editor {
             Terminal::clear_row();
             if row == 0 {
                 self.welcome();
-            } else if row == self.terminal.height as usize - 1 {
+            } else if row == self.terminal.height as usize {
                 self.message_bar();
             } else if row == self.terminal.height as usize {
                 self.stats_bar();
@@ -101,17 +104,17 @@ impl Editor {
     fn scroll(&mut self) {
         let Position { x, y } = self.cursor_position;
         let mut off = &mut self.offset;
-        let width = self.terminal.width;
-        let height = self.terminal.height;
-        if y < off.y {
-            off.y = y;
+        let width = self.terminal.width as usize;
+        let height = self.terminal.height as usize;
+        if y <= off.y {
+            off.y = y - 1;
         } else if y >= off.y.saturating_add(height) {
             off.y = y.saturating_sub(height).saturating_add(1);
         }
         if x < off.x {
             off.x = x;
-        } else if x >= off.x.saturating_add(height) {
-            off.x = x.saturating_sub(height).saturating_add(1);
+        } else if x >= off.x.saturating_add(width) {
+            off.x = x.saturating_sub(width).saturating_add(1);
         }
     }
     #[allow(clippy::match_same_arms, clippy::cast_possible_truncation)]
@@ -176,12 +179,45 @@ impl Editor {
     #[allow(clippy::cast_possible_wrap)]
     fn move_cursor(&mut self, key: Key) {
         let Position { mut x, mut y } = self.cursor_position;
+        let width = self.document.rows[y - 1].content.len();
+        let height = self.document.rows.len();
         match key {
-            Key::Up => y = y.saturating_sub(1),
-            Key::Down => y = y.saturating_add(1),
+            Key::Up => {
+                if y > 1 {
+                    y = y.saturating_sub(1);
+                }
+            }
+            Key::Down => {
+                if y < height {
+                    y = y.saturating_add(1);
+                }
+            }
             Key::Left => x = x.saturating_sub(1),
-            Key::Right => x = x.saturating_add(1),
+            Key::Right => {
+                if x < width {
+                    x = x.saturating_add(1);
+                }
+            }
+            Key::Home => x = 0,
+            Key::End => x = width,
+            Key::PageDown => {
+                y = if y.saturating_add(self.terminal.height as usize) < height {
+                    y + self.terminal.height as usize
+                } else {
+                    self.document.rows.len()
+                }
+            }
+            Key::PageUp => {
+                y = if y > self.terminal.height as usize {
+                    y - self.terminal.height as usize
+                } else {
+                    1
+                }
+            }
             _ => (),
+        }
+        if x > self.document.rows[y - 1].content.len() {
+            x = self.document.rows[y - 1].content.len();
         }
         self.cursor_position = Position { x, y }
     }
@@ -229,7 +265,7 @@ impl Editor {
             self.terminal.height,
             self.offset.x,
             self.offset.y,
-            self.document.rows[self.cursor_position.y+self.offset.y - 1].content.len(),
+            self.document.rows[self.cursor_position.y - 1].content.len(),
             color::Bg(Reset),
             color::Fg(Reset),
         );
@@ -250,83 +286,5 @@ impl Editor {
             message_buffer: vec!["press ctrl+n to compose a status message".to_string()],
             message: StatusMessage::new("HELP: ctrl + q to quit".to_string()),
         }
-    }
-
-    //BAD FUNCTIONS!
-    fn up(&mut self, x: usize, y: usize, off: &Position) -> Position {
-        let mut x = x;
-        let mut y = y;
-        if y > 1 {
-            if y - self.offset.y == 1 {
-                self.offset.y -= 1;
-                if x > self.document.rows[y].content.len() {
-                    x = self.document.rows[y].content.len();
-                }
-            } else {
-                y = y.saturating_sub(1);
-                if x > self.document.rows[y - 1].content.len() {
-                    if self.document.rows[y - 1].content.len() > self.terminal.width as usize {
-                        x = self.terminal.width as usize - 1 + off.x;
-                        self.offset.x = self.document.rows[y - 1]
-                            .content
-                            .len()
-                            .saturating_sub(self.terminal.width as usize - 1);
-                    } else {
-                        x = self.document.rows[y - 1].content.len() + off.x;
-                        self.offset.x = 0;
-                    }
-                }
-            }
-        }
-        Position { x, y }
-    }
-    fn left(&mut self, x: usize, y: usize, _off: &Position) -> Position {
-        let mut x = x;
-        if x > 0 {
-            if x - self.offset.x == 0 {
-                self.offset.x -= 1;
-            } else {
-                x = x.saturating_sub(1);
-            }
-        }
-        Position { x, y }
-    }
-    fn right(&mut self, x: usize, y: usize, off: &Position) -> Position {
-        let mut x = x;
-        if x < self.document.rows[y - 1].content.len() as usize {
-            if x > self.terminal.width as usize + off.x - 3 {
-                self.offset.x += 1;
-            } else {
-                x = x.saturating_add(1);
-            }
-        }
-        Position { x, y }
-    }
-    fn down(&mut self, x: usize, y: usize, off: &Position) -> Position {
-        let mut x = x;
-        let mut y = y;
-        if y < self.document.rows.len() {
-            if y >= self.terminal.height as usize + off.y - 2 {
-                self.offset.y += 1;
-                if x > self.document.rows[y].content.len() {
-                    x = self.document.rows[y].content.len();
-                }
-            } else {
-                y = y.saturating_add(1);
-                if x > self.document.rows[y - 1].content.len() {
-                    if self.document.rows[y - 1].content.len() > self.terminal.width as usize {
-                        x = self.terminal.width as usize - 1 + off.x;
-                        self.offset.x = self.document.rows[y - 1]
-                            .content
-                            .len()
-                            .saturating_sub(self.terminal.width as usize - 1);
-                    } else {
-                        x = self.document.rows[y - 1].content.len() + off.x;
-                        self.offset.x = 0;
-                    }
-                }
-            }
-        }
-        Position { x, y }
     }
 }
