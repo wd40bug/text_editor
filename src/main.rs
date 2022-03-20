@@ -1,6 +1,6 @@
+#![allow(clippy::implicit_return)]
 use clap::Parser;
 use text_editor::{document::Document, editor::Editor};
-
 fn main() {
     simple_logging::log_to_file("last log.log", log::LevelFilter::Debug).unwrap();
     let args = Args::parse();

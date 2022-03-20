@@ -56,6 +56,7 @@ impl Editor {
             }
         }
     }
+    #[allow(clippy::cast_possible_truncation)]
     //RENDERING
     fn render(&mut self) {
         self.draw_rows();
@@ -120,14 +121,20 @@ impl Editor {
             off.x = x.saturating_sub(width).saturating_add(1);
         }
     }
-    #[allow(clippy::match_same_arms, clippy::cast_possible_truncation)]
-    fn decode_key(&mut self, key: Key) {
+    fn ctrl_decode(&mut self, key: char) {
         match key {
-            Key::Ctrl('q') => {
-                println!("\r");
-                self.should_exit = true;
+            'q' => {
+                if !self.unsaved_changes {
+                    println!("\r");
+                    self.should_exit = true;
+                } else if let Some('y') = self.prompt_char(
+                    "This file has unsaved changes, are you sure you want to quit?(y,n)",
+                ) {
+                    println!("\r");
+                    self.should_exit = true;
+                }
             }
-            Key::Ctrl('s') => match self.document.path {
+            's' => match self.document.path {
                 Some(_) => {
                     self.unsaved_changes = false;
                     self.document.save();
@@ -139,11 +146,18 @@ impl Editor {
                     }
                 }
             },
-            Key::Ctrl('n') => {
+            'n' => {
                 if let Some(message) = self.prompt("Message") {
                     self.message_buffer.push(message);
                 }
             }
+            _ => (),
+        }
+    }
+    #[allow(clippy::match_same_arms, clippy::cast_possible_truncation)]
+    fn decode_key(&mut self, key: Key) {
+        match key {
+            Key::Ctrl(x) => self.ctrl_decode(x),
             Key::Backspace => {
                 if self.cursor_position.x > 0 {
                     self.unsaved_changes = true;
@@ -151,21 +165,19 @@ impl Editor {
                         .content
                         .remove(self.cursor_position.x - 1);
                     self.cursor_position.x -= 1;
-                } else {
-                    if self.cursor_position.y > 1 {
-                        self.unsaved_changes = true;
-                        let mut foo = self
-                            .document
-                            .rows
-                            .remove(self.cursor_position.y - 1)
-                            .content;
-                        self.document.rows[self.cursor_position.y - 2]
-                            .content
-                            .append(&mut foo);
-                        self.cursor_position.x =
-                            self.document.rows[self.cursor_position.y - 2].content.len();
-                        self.cursor_position.y = self.cursor_position.y - 1;
-                    }
+                } else if self.cursor_position.y > 1 {
+                    self.unsaved_changes = true;
+                    let mut current_row = self
+                        .document
+                        .rows
+                        .remove(self.cursor_position.y - 1)
+                        .content;
+                    self.document.rows[self.cursor_position.y - 2]
+                        .content
+                        .append(&mut current_row);
+                    self.cursor_position.x =
+                        self.document.rows[self.cursor_position.y - 2].content.len();
+                    self.cursor_position.y -= 1;
                 }
             }
             Key::Delete => {
@@ -179,14 +191,12 @@ impl Editor {
                     self.document.rows[self.cursor_position.y - 1]
                         .content
                         .remove(self.cursor_position.x + 1);
-                } else {
-                    if self.cursor_position.y < self.document.rows.len() {
-                        self.unsaved_changes = true;
-                        let mut foo = self.document.rows.remove(self.cursor_position.y).content;
-                        self.document.rows[self.cursor_position.y - 1]
-                            .content
-                            .append(&mut foo);
-                    }
+                } else if self.cursor_position.y < self.document.rows.len() {
+                    self.unsaved_changes = true;
+                    let mut current_row = self.document.rows.remove(self.cursor_position.y).content;
+                    self.document.rows[self.cursor_position.y - 1]
+                        .content
+                        .append(&mut current_row);
                 }
             }
             Key::Char('\n') => {
@@ -237,6 +247,7 @@ impl Editor {
         Terminal::flush();
         self.scroll();
     }
+    #[allow(clippy::cast_possible_truncation)]
     fn prompt(&mut self, query: &str) -> Option<String> {
         Terminal::move_cursor(1, self.terminal.height + 1);
         Terminal::clear_row();
@@ -267,6 +278,26 @@ impl Editor {
         }
         Terminal::clear_row();
         Some(message)
+    }
+    fn prompt_char(&mut self, query: &str) -> Option<char> {
+        Terminal::move_cursor(1, self.terminal.height + 1);
+        Terminal::clear_row();
+        print!("{}: ", query);
+        stdout().flush().unwrap();
+        loop {
+            let key = Self::get_next_key().unwrap();
+            match key {
+                Key::Esc => {
+                    Terminal::clear_row();
+                    return None;
+                }
+                Key::Char(x) => {
+                    Terminal::clear_row();
+                    return Some(x);
+                }
+                _ => (),
+            }
+        }
     }
     //MOVE CURSOR
     #[allow(clippy::cast_possible_wrap)]

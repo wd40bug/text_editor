@@ -61,27 +61,33 @@ impl Document {
         }
         Document { rows, path }
     }
+    ///# Panics
+    ///
+    /// panics if file creation fails
     pub fn save(&self) {
         let path = self.path.clone().unwrap();
         let mut file = std::fs::File::create(path).unwrap();
         for row in &self.rows {
-            let mut foo = String::new();
+            let mut bit_buffer = String::new();
             for gr in &row.content {
-                foo.push_str(&gr);
+                bit_buffer.push_str(gr);
             }
-            foo.push('\n');
-            file.write_all(foo.as_bytes()).unwrap();
+            bit_buffer.push('\n');
+            file.write_all(bit_buffer.as_bytes()).unwrap();
         }
     }
+    ///# Panics
+    ///
+    /// panics if the file creation fails
     pub fn save_as(&mut self, path: String) {
         let mut file = std::fs::File::create(path.clone()).unwrap();
         for row in &self.rows {
-            let mut foo = String::new();
+            let mut bit_buf = String::new();
             for gr in &row.content {
-                foo.push_str(&gr);
+                bit_buf.push_str(gr);
             }
-            foo.push('\n');
-            file.write_all(foo.as_bytes()).unwrap();
+            bit_buf.push('\n');
+            file.write_all(bit_buf.as_bytes()).unwrap();
         }
         self.path = Some(PathBuf::from(path));
     }
