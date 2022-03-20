@@ -279,12 +279,13 @@ impl Editor {
             Key::Right => Position { x, y } = self.right(x, y, &off),
             Key::Down => Position { x, y } = self.down(x, y, &off),
             Key::PageUp => {
-                y = if y as isize - (self.terminal.height as isize - 3) > 0 {
+                y = if y as isize - (self.terminal.height as isize) > 0 {
                     self.offset.y -= self.terminal.height as usize - 3;
                     off.y + 1
                 } else {
-                    1
-                }
+                    self.offset.y = 0;
+                    1 + off.y
+                };
             }
             Key::PageDown => {
                 y = if y + (self.terminal.height as usize - 3) < self.document.rows.len() {
@@ -292,7 +293,7 @@ impl Editor {
                     off.y + 1
                 } else {
                     self.document.rows.len()
-                }
+                };
             }
             Key::End => {
                 if self.document.rows[y - 1].content.len() > self.terminal.width as usize {
