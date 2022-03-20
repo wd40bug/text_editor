@@ -1,4 +1,4 @@
-use std::{fs::read_to_string, ops::RangeInclusive, path::PathBuf};
+use std::{fs::read_to_string, io::Write, ops::RangeInclusive, path::PathBuf};
 
 use unicode_segmentation::UnicodeSegmentation;
 #[derive(Debug)]
@@ -54,5 +54,16 @@ impl Document {
             row.parse_specials();
         }
         Document { rows, path }
+    }
+    pub fn save(&self) {
+        let mut file = std::fs::File::create(&self.path).unwrap();
+        for row in &self.rows {
+            let mut foo = String::new();
+            for gr in &row.content {
+                foo.push_str(&gr);
+            }
+            foo.push('\n');
+            file.write_all(foo.as_bytes()).unwrap();
+        }
     }
 }

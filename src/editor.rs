@@ -9,7 +9,11 @@ use termion::{
     input::TermRead,
 };
 
-use crate::{document::Document, terminal::Terminal, Position, StatusMessage};
+use crate::{
+    document::{Document, Row},
+    terminal::Terminal,
+    Position, StatusMessage,
+};
 
 pub struct Editor {
     should_exit: bool,
@@ -62,14 +66,10 @@ impl Editor {
     }
     pub fn draw_rows(&mut self) {
         print!("{}", termion::cursor::Hide);
-        for row in 0..=self.terminal.height as usize {
+        for row in 0..self.terminal.height as usize {
             Terminal::clear_row();
             if row == 0 {
                 self.welcome();
-            } else if row == self.terminal.height as usize {
-                self.message_bar();
-            } else if row == self.terminal.height as usize {
-                self.stats_bar();
             } else if (1..=self.document.rows.len()).contains(&(row + self.offset.y)) {
                 if self.document.rows[row + self.offset.y - 1]
                     .content
@@ -96,6 +96,8 @@ impl Editor {
                 println!("~\r");
             }
         }
+        self.message_bar();
+        self.stats_bar();
         Terminal::move_cursor(1, 1);
         print!("{}", termion::cursor::Show);
     }
@@ -123,6 +125,9 @@ impl Editor {
             Key::Ctrl('q') => {
                 println!("\r");
                 self.should_exit = true;
+            }
+            Key::Ctrl('s') => {
+                self.document.save();
             }
             Key::Ctrl('n') => {
                 Terminal::move_cursor(1, self.terminal.height);
@@ -154,6 +159,66 @@ impl Editor {
                     }
                 }
                 Terminal::clear_row();
+            }
+            Key::Backspace => {
+                if self.cursor_position.x > 0 {
+                    self.document.rows[self.cursor_position.y - 1]
+                        .content
+                        .remove(self.cursor_position.x - 1);
+                    self.cursor_position.x -= 1;
+                } else {
+                    if self.cursor_position.y > 1 {
+                        let mut foo = self
+                            .document
+                            .rows
+                            .remove(self.cursor_position.y - 1)
+                            .content;
+                        self.document.rows[self.cursor_position.y - 2]
+                            .content
+                            .append(&mut foo);
+                    }
+                }
+            }
+            Key::Delete => {
+                if self.cursor_position.x
+                    < self.document.rows[self.cursor_position.y - 1].content.len() - 1
+                {
+                    self.document.rows[self.cursor_position.y - 1]
+                        .content
+                        .remove(self.cursor_position.x + 1);
+                } else {
+                    let mut foo = self.document.rows.remove(self.cursor_position.y).content;
+                    self.document.rows[self.cursor_position.y - 1]
+                        .content
+                        .append(&mut foo);
+                }
+            }
+            Key::Char('\n') => {
+                if self.cursor_position.x
+                    < self.document.rows[self.cursor_position.y - 1].content.len()
+                {
+                    self.document.rows.insert(
+                        self.cursor_position.y,
+                        Row {
+                            content: (&self.document.rows[self.cursor_position.y - 1].content
+                                [self.cursor_position.x..])
+                                .to_vec(),
+                        },
+                    );
+                    self.document.rows[self.cursor_position.y - 1].content = self.document.rows
+                        [self.cursor_position.y - 1]
+                        .content[..self.cursor_position.x]
+                        .to_vec();
+                } else {
+                    self.document.rows.insert(
+                        self.cursor_position.y,
+                        Row {
+                            content: Vec::new(),
+                        },
+                    );
+                }
+                self.cursor_position.y += 1;
+                self.cursor_position.x = 0;
             }
             Key::Char(x) => {
                 self.document.rows[self.cursor_position.y - 1]
