@@ -9,11 +9,7 @@ use termion::{
     input::TermRead,
 };
 
-use crate::{
-    document::{Document, Row},
-    terminal::Terminal,
-    Position, StatusMessage,
-};
+use crate::{document::Document, row::Row, terminal::Terminal, Position, StatusMessage};
 
 pub struct Editor {
     should_exit: bool,
@@ -60,11 +56,20 @@ impl Editor {
     //RENDERING
     fn render(&mut self) {
         self.draw_rows();
+        self.message_bar();
+        self.stats_bar();
+        Terminal::move_cursor(1, 1);
+        self.render_cursor();
+        Terminal::flush();
+        for row in &mut self.document.rows {
+            row.highlight();
+        }
+    }
+    fn render_cursor(&self) {
         Terminal::move_cursor(
             self.cursor_position.x.saturating_sub(self.offset.x) as u16,
             self.cursor_position.y.saturating_sub(self.offset.y) as u16,
         );
-        Terminal::flush();
     }
     pub fn draw_rows(&mut self) {
         print!("{}", termion::cursor::Hide);
@@ -98,9 +103,6 @@ impl Editor {
                 println!("~\r");
             }
         }
-        self.message_bar();
-        self.stats_bar();
-        Terminal::move_cursor(1, 1);
         print!("{}", termion::cursor::Show);
     }
 
@@ -146,9 +148,49 @@ impl Editor {
                     }
                 }
             },
-            'n' => {
-                if let Some(message) = self.prompt("Message") {
-                    self.message_buffer.push(message);
+            'f' => {
+                let query = self.prompt("Search");
+                if let Some(string) = query {
+                    let finds = self.document.search(string);
+                    if finds.is_empty() {
+                    } else if finds.len() == 1 {
+                        self.cursor_position = finds[0].clone()
+                    } else {
+                        let mut current = 0;
+                        loop {
+                            self.cursor_position = finds[current].clone();
+                            let key = Self::get_next_key().unwrap();
+                            match key {
+                                Key::Esc => {
+                                    break;
+                                }
+                                Key::Left => {
+                                    if current > 0 {
+                                        current -= 1;
+                                    } else {
+                                        current = finds.len() - 1;
+                                    }
+                                }
+                                Key::Right => {
+                                    if current < finds.len() - 1 {
+                                        current += 1;
+                                    } else {
+                                        current = 0;
+                                    }
+                                }
+                                _ => (),
+                            }
+                            self.scroll();
+                            self.draw_rows();
+                            self.message_bar();
+                            Terminal::move_cursor(0, self.terminal.height + 1);
+                            Terminal::clear_row();
+                            print!("{}/{}", current, finds.len());
+                            Terminal::move_cursor(1, 1);
+                            self.render_cursor();
+                            Terminal::flush();
+                        }
+                    }
                 }
             }
             _ => (),
@@ -210,6 +252,7 @@ impl Editor {
                             content: (&self.document.rows[self.cursor_position.y - 1].content
                                 [self.cursor_position.x..])
                                 .to_vec(),
+                            highlighting: Vec::new(),
                         },
                     );
                     self.document.rows[self.cursor_position.y - 1].content = self.document.rows
@@ -221,6 +264,7 @@ impl Editor {
                         self.cursor_position.y,
                         Row {
                             content: Vec::new(),
+                            highlighting: Vec::new(),
                         },
                     );
                 }

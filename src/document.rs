@@ -1,31 +1,9 @@
-use std::{fs::read_to_string, io::Write, ops::RangeInclusive, path::PathBuf};
+use std::{fs::read_to_string, io::Write, path::PathBuf};
 
 use unicode_segmentation::UnicodeSegmentation;
-#[derive(Debug)]
-pub struct Row {
-    pub content: Vec<String>,
-}
-impl Row {
-    #[must_use]
-    pub fn to_string(&self, range: RangeInclusive<usize>) -> String {
-        let mut result = String::new();
-        for gr in range {
-            result += &self.content[gr];
-        }
-        result
-    }
-    pub fn parse_specials(&mut self) {
-        for (i, gr) in self.content.clone().iter().enumerate() {
-            if gr == "\t" {
-                self.content.remove(i);
-                self.content.insert(i, " ".to_string());
-                self.content.insert(i, " ".to_string());
-                self.content.insert(i, " ".to_string());
-                self.content.insert(i, " ".to_string());
-            }
-        }
-    }
-}
+
+use crate::{row::Row, Position};
+
 pub struct Document {
     pub rows: Vec<Row>,
     pub path: Option<PathBuf>,
@@ -47,8 +25,8 @@ impl Document {
                         .iter()
                         .map(|str| (*str).to_string())
                         .collect(),
+                    highlighting: Vec::new(),
                 });
-                log::info!("{:?}", rows.last().unwrap());
             }
             log::info!("{}", rows.len());
             for row in &mut rows {
@@ -57,6 +35,7 @@ impl Document {
         } else {
             rows = vec![Row {
                 content: Vec::new(),
+                highlighting: Vec::new(),
             }];
         }
         Document { rows, path }
@@ -90,5 +69,14 @@ impl Document {
             file.write_all(bit_buf.as_bytes()).unwrap();
         }
         self.path = Some(PathBuf::from(path));
+    }
+    pub fn search(&self, string: String) -> Vec<Position> {
+        let mut result = Vec::new();
+        for (i, row) in self.rows.iter().enumerate() {
+            if let Some(u) = row.search(&string) {
+                result.push(Position { x: u, y: i + 1 });
+            }
+        }
+        result
     }
 }

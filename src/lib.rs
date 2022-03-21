@@ -2,6 +2,8 @@ use std::time::Instant;
 
 pub mod document;
 pub mod editor;
+pub mod highlight;
+pub mod row;
 pub mod terminal;
 #[derive(Clone)]
 pub struct Position {
