@@ -4,7 +4,7 @@ use std::{
 };
 
 use termion::{
-    color::{self, Black, Blue, Reset, White},
+    color::{self, Bg, Black, Blue, Fg, Reset, White},
     event::Key,
     input::TermRead,
 };
@@ -28,6 +28,7 @@ impl Editor {
     /// will panic if something is wrong with the inputted key
     pub fn run(&mut self) {
         Terminal::clear_screen();
+        self.document.highlight();
         loop {
             self.render();
             let c = Self::get_next_key();
@@ -61,9 +62,6 @@ impl Editor {
         Terminal::move_cursor(1, 1);
         self.render_cursor();
         Terminal::flush();
-        for row in &mut self.document.rows {
-            row.highlight();
-        }
     }
     fn render_cursor(&self) {
         Terminal::move_cursor(
@@ -96,8 +94,10 @@ impl Editor {
                         .saturating_sub(1)
                 };
                 println!(
-                    "{}\r",
-                    &self.document.rows[row + self.offset.y - 1].to_string(self.offset.x..=end)
+                    "{}{}{}\r",
+                    &self.document.rows[row + self.offset.y - 1].to_string(self.offset.x..=end),
+                    Fg(Reset),
+                    Bg(Reset),
                 );
             } else {
                 println!("~\r");
@@ -136,18 +136,21 @@ impl Editor {
                     self.should_exit = true;
                 }
             }
-            's' => match self.document.path {
-                Some(_) => {
-                    self.unsaved_changes = false;
-                    self.document.save();
-                }
-                None => {
-                    if let Some(path) = self.prompt("Save As") {
-                        self.document.save_as(path);
+            's' => {
+                self.document.highlight();
+                match self.document.path {
+                    Some(_) => {
                         self.unsaved_changes = false;
+                        self.document.save();
+                    }
+                    None => {
+                        if let Some(path) = self.prompt("Save As") {
+                            self.document.save_as(path);
+                            self.unsaved_changes = false;
+                        }
                     }
                 }
-            },
+            }
             'f' => {
                 let query = self.prompt("Search");
                 if let Some(string) = query {
@@ -288,6 +291,15 @@ impl Editor {
             | Key::Home => self.move_cursor(key),
             _ => (),
         }
+        for i in -2..1 {
+            if let Some(row) = self
+                .document
+                .rows
+                .get_mut((self.cursor_position.y as isize).saturating_add(i) as usize)
+            {
+                row.highlight();
+            }
+        }
         Terminal::flush();
         self.scroll();
     }
@@ -416,8 +428,8 @@ impl Editor {
             color::Bg(White),
             " ".repeat(self.terminal.width as usize)
         );
-        println!(
-            "{}{}{} lines: {} bx: {} by: {} tx: {} ty: {} terminal width: {} terminal height: {} x offset: {} y offset: {} line length: {}{}{}\r",
+        let content = format!(
+            "{}{}{} lines: {} x: {} y: {} terminal width: {} terminal height: {} x offset: {} y offset: {} line length: {} highlighting: {:?}\r",
             color::Fg(Black),
             if let Some(path) = &self.document.path{
                 path.clone().into_os_string().into_string().unwrap()
@@ -430,8 +442,6 @@ impl Editor {
                 ""
             },
             self.document.rows.len(),
-            self.cursor_position.x + self.offset.x,
-            self.cursor_position.y + self.offset.y,
             self.cursor_position.x,
             self.cursor_position.y,
             self.terminal.width,
@@ -439,6 +449,15 @@ impl Editor {
             self.offset.x,
             self.offset.y,
             self.document.rows[self.cursor_position.y - 1].content.len(),
+            self.document.rows[self.cursor_position.y - 1].highlighting.get(self.cursor_position.x),
+        );
+        println!(
+            "{}{}{}\r",
+            if content.len() > self.terminal.width as usize {
+                &content[..self.terminal.width as usize]
+            } else {
+                &content
+            },
             color::Bg(Reset),
             color::Fg(Reset),
         );

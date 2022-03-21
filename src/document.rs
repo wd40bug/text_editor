@@ -9,6 +9,11 @@ pub struct Document {
     pub path: Option<PathBuf>,
 }
 impl Document {
+    pub fn highlight(&mut self) {
+        for row in &mut self.rows {
+            row.highlight();
+        }
+    }
     ///# Panics
     ///
     /// panics if file isn't there

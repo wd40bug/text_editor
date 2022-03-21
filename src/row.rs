@@ -14,7 +14,7 @@ impl Row {
         let mut result = String::new();
         for gr in range {
             let mut output = String::new();
-            let content = &self.content[gr];
+            let content = self.content[gr].clone();
             if content.parse::<isize>().is_ok() {
                 output += &format!(
                     "{}{}{}",
@@ -23,7 +23,7 @@ impl Row {
                     Fg(Reset)
                 );
             } else {
-                output = content.to_string();
+                output = content;
             }
             result += &output;
         }
