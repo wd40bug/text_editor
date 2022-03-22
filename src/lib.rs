@@ -2,6 +2,7 @@ use std::time::Instant;
 
 pub mod document;
 pub mod editor;
+pub mod file_type;
 pub mod highlight;
 pub mod row;
 pub mod terminal;

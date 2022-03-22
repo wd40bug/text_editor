@@ -28,7 +28,7 @@ impl Editor {
     /// will panic if something is wrong with the inputted key
     pub fn run(&mut self) {
         Terminal::clear_screen();
-        self.document.highlight();
+        self.document.highlight(&None);
         loop {
             self.render();
             let c = Self::get_next_key();
@@ -137,7 +137,7 @@ impl Editor {
                 }
             }
             's' => {
-                self.document.highlight();
+                self.document.highlight(&None);
                 match self.document.path {
                     Some(_) => {
                         self.unsaved_changes = false;
@@ -154,6 +154,7 @@ impl Editor {
             'f' => {
                 let query = self.prompt("Search");
                 if let Some(string) = query {
+                    self.document.highlight(&Some(string.clone()));
                     let finds = self.document.search(string);
                     if finds.is_empty() {
                     } else if finds.len() == 1 {
@@ -165,6 +166,7 @@ impl Editor {
                             let key = Self::get_next_key().unwrap();
                             match key {
                                 Key::Esc => {
+                                    self.document.highlight(&None);
                                     break;
                                 }
                                 Key::Left => {
@@ -274,6 +276,15 @@ impl Editor {
                 self.cursor_position.y += 1;
                 self.cursor_position.x = 0;
             }
+            Key::Char('\t') => {
+                self.unsaved_changes = true;
+                for _ in 0..4 {
+                    self.document.rows[self.cursor_position.y - 1]
+                        .content
+                        .insert(self.cursor_position.x, " ".to_string());
+                }
+                self.cursor_position.x += 4;
+            }
             Key::Char(x) => {
                 self.unsaved_changes = true;
                 self.document.rows[self.cursor_position.y - 1]
@@ -297,7 +308,7 @@ impl Editor {
                 .rows
                 .get_mut((self.cursor_position.y as isize).saturating_add(i) as usize)
             {
-                row.highlight();
+                row.highlight(&None);
             }
         }
         Terminal::flush();

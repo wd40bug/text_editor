@@ -2,16 +2,17 @@ use std::{fs::read_to_string, io::Write, path::PathBuf};
 
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::{row::Row, Position};
+use crate::{file_type::FileType, row::Row, Position};
 
 pub struct Document {
     pub rows: Vec<Row>,
     pub path: Option<PathBuf>,
+    pub file_type: FileType,
 }
 impl Document {
-    pub fn highlight(&mut self) {
+    pub fn highlight(&mut self, word: &Option<String>) {
         for row in &mut self.rows {
-            row.highlight();
+            row.highlight(word);
         }
     }
     ///# Panics
@@ -43,7 +44,11 @@ impl Document {
                 highlighting: Vec::new(),
             }];
         }
-        Document { rows, path }
+        Document {
+            rows,
+            path,
+            file_type: FileType::default(),
+        }
     }
     ///# Panics
     ///
