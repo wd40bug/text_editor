@@ -2,7 +2,7 @@ use std::ops::RangeInclusive;
 
 use termion::color::{Fg, Rgb};
 
-use crate::highlight::Type;
+use crate::{file_type::HighlightingOptions, highlight::Type};
 #[derive(Debug)]
 pub struct Row {
     pub content: Vec<String>,
@@ -40,12 +40,24 @@ impl Row {
         let bit_buffer = self.inner_string();
         bit_buffer.find(&string)
     }
-    pub fn highlight(&mut self, word: &Option<String>) {
+    pub fn highlight(&mut self, word: &Option<String>, hilight_ops: HighlightingOptions) {
         let inner_string = self.inner_string();
         self.highlighting = Vec::new();
-        for (i, _gr) in self.content.iter().enumerate() {
-            if self.is_used_as_num(i) {
+        for (i, gr) in self.content.iter().enumerate() {
+            if let Some(_) = self.highlighting.get(i) {
+                continue;
+            } else if hilight_ops.numbers && self.is_used_as_num(i) {
                 self.highlighting.push(Type::Number);
+            } else if gr == "\"" || gr == "'" {
+                self.highlighting.push(Type::String);
+                for j in i..self.content.len() {
+                    if self.content[j] == *gr {
+                        self.highlighting.push(Type::String);
+                        break;
+                    } else {
+                        self.highlighting.push(Type::String);
+                    }
+                }
             } else {
                 self.highlighting.push(Type::None);
             }
@@ -69,7 +81,7 @@ impl Row {
         if self.content[index] == "."
             && index > 0
             && self.highlighting[index - 1] == Type::Number
-            && self.content[index - 1].parse::<i32>().is_ok()
+            && self.content[index + 1].parse::<i32>().is_ok()
         {
             return true;
         }

@@ -12,7 +12,7 @@ pub struct Document {
 impl Document {
     pub fn highlight(&mut self, word: &Option<String>) {
         for row in &mut self.rows {
-            row.highlight(word);
+            row.highlight(word, self.file_type.highlight_ops.clone());
         }
     }
     ///# Panics
@@ -21,7 +21,9 @@ impl Document {
     #[must_use]
     pub fn new(path: Option<PathBuf>) -> Document {
         let mut rows = Vec::new();
+        let file_path;
         if let Some(path) = path.clone() {
+            file_path = FileType::from(path.clone());
             let content = read_to_string(&path).unwrap();
             for line in content.lines() {
                 rows.push(Row {
@@ -39,6 +41,7 @@ impl Document {
                 row.parse_specials();
             }
         } else {
+            file_path = FileType::default();
             rows = vec![Row {
                 content: Vec::new(),
                 highlighting: Vec::new(),
@@ -47,7 +50,7 @@ impl Document {
         Document {
             rows,
             path,
-            file_type: FileType::default(),
+            file_type: file_path,
         }
     }
     ///# Panics
@@ -79,6 +82,7 @@ impl Document {
             file.write_all(bit_buf.as_bytes()).unwrap();
         }
         self.path = Some(PathBuf::from(path));
+        self.file_type = FileType::from(self.path.clone().unwrap());
     }
     pub fn search(&self, string: String) -> Vec<Position> {
         let mut result = Vec::new();
