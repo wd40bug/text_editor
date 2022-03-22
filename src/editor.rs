@@ -308,7 +308,7 @@ impl Editor {
                 .rows
                 .get_mut((self.cursor_position.y as isize).saturating_add(i) as usize)
             {
-                row.highlight(&None);
+                row.highlight(&None, self.document.file_type.highlight_ops.clone());
             }
         }
         Terminal::flush();
