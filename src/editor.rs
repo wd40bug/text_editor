@@ -63,6 +63,7 @@ impl Editor {
         self.render_cursor();
         Terminal::flush();
     }
+    #[allow(clippy::cast_possible_truncation)]
     fn render_cursor(&self) {
         Terminal::move_cursor(
             self.cursor_position.x.saturating_sub(self.offset.x) as u16,
@@ -123,6 +124,7 @@ impl Editor {
             off.x = x.saturating_sub(width).saturating_add(1);
         }
     }
+    #[allow(clippy::if_same_then_else)]
     fn ctrl_decode(&mut self, key: char) {
         match key {
             'q' => {
@@ -155,10 +157,10 @@ impl Editor {
                 let query = self.prompt("Search");
                 if let Some(string) = query {
                     self.document.highlight(&Some(string.clone()));
-                    let finds = self.document.search(string);
+                    let finds = self.document.search(&string);
                     if finds.is_empty() {
                     } else if finds.len() == 1 {
-                        self.cursor_position = finds[0].clone()
+                        self.cursor_position = finds[0].clone();
                     } else {
                         let mut current = 0;
                         loop {
@@ -198,10 +200,35 @@ impl Editor {
                     }
                 }
             }
+            'd' => {}
             _ => (),
         }
     }
-    #[allow(clippy::match_same_arms, clippy::cast_possible_truncation)]
+    fn delete(&mut self) {
+        if self.cursor_position.x
+            < self.document.rows[self.cursor_position.y - 1]
+                .content
+                .len()
+                .saturating_sub(1)
+        {
+            self.unsaved_changes = true;
+            self.document.rows[self.cursor_position.y - 1]
+                .content
+                .remove(self.cursor_position.x + 1);
+        } else if self.cursor_position.y < self.document.rows.len() {
+            self.unsaved_changes = true;
+            let mut current_row = self.document.rows.remove(self.cursor_position.y).content;
+            self.document.rows[self.cursor_position.y - 1]
+                .content
+                .append(&mut current_row);
+        }
+    }
+    #[allow(
+        clippy::match_same_arms,
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap,
+        clippy::cast_sign_loss
+    )]
     fn decode_key(&mut self, key: Key) {
         match key {
             Key::Ctrl(x) => self.ctrl_decode(x),
@@ -227,25 +254,7 @@ impl Editor {
                     self.cursor_position.y -= 1;
                 }
             }
-            Key::Delete => {
-                if self.cursor_position.x
-                    < self.document.rows[self.cursor_position.y - 1]
-                        .content
-                        .len()
-                        .saturating_sub(1)
-                {
-                    self.unsaved_changes = true;
-                    self.document.rows[self.cursor_position.y - 1]
-                        .content
-                        .remove(self.cursor_position.x + 1);
-                } else if self.cursor_position.y < self.document.rows.len() {
-                    self.unsaved_changes = true;
-                    let mut current_row = self.document.rows.remove(self.cursor_position.y).content;
-                    self.document.rows[self.cursor_position.y - 1]
-                        .content
-                        .append(&mut current_row);
-                }
-            }
+            Key::Delete => self.delete(),
             Key::Char('\n') => {
                 self.unsaved_changes = true;
                 if self.cursor_position.x
@@ -308,7 +317,7 @@ impl Editor {
                 .rows
                 .get_mut((self.cursor_position.y as isize).saturating_add(i) as usize)
             {
-                row.highlight(&None, self.document.file_type.highlight_ops.clone());
+                row.highlight(&None, &self.document.file_type.highlight_ops.clone());
             }
         }
         Terminal::flush();

@@ -12,7 +12,7 @@ pub struct Document {
 impl Document {
     pub fn highlight(&mut self, word: &Option<String>) {
         for row in &mut self.rows {
-            row.highlight(word, self.file_type.highlight_ops.clone());
+            row.highlight(word, &self.file_type.highlight_ops.clone());
         }
     }
     ///# Panics
@@ -84,10 +84,11 @@ impl Document {
         self.path = Some(PathBuf::from(path));
         self.file_type = FileType::from(self.path.clone().unwrap());
     }
-    pub fn search(&self, string: String) -> Vec<Position> {
+    #[allow(clippy::must_use_candidate)]
+    pub fn search(&self, string: &str) -> Vec<Position> {
         let mut result = Vec::new();
         for (i, row) in self.rows.iter().enumerate() {
-            if let Some(u) = row.search(&string) {
+            if let Some(u) = row.search(string) {
                 result.push(Position { x: u, y: i + 1 });
             }
         }
