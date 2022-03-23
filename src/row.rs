@@ -96,9 +96,7 @@ impl Row {
                 self.highlighting.push(Type::None);
             }
         }
-        let inner = self.inner_string();
-        let word_regex = Regex::new(r"\p{Punct}\s]+").unwrap();
-        let inner_words: Vec<&str> = word_regex.split(&inner).collect();
+        let inner_words = self.get_inner_words();
         let mut i = 0;
         for word in inner_words {
             if hilight_ops.key_words.contains(&word.to_string()) {
@@ -106,7 +104,7 @@ impl Row {
                     self.highlighting[j + i] = Type::Keyword;
                 }
             }
-            i += word.len();
+            i += word.len() + 1;
         }
         if let Some(query) = word {
             if let Some(index) = inner_string.find(query) {
@@ -115,6 +113,13 @@ impl Row {
                 }
             }
         }
+    }
+    pub fn get_inner_words(&mut self) -> Vec<String> {
+        Regex::new(r"[ {};.?\\/+=\-!@#$%^&*():><,.~`|]") //r"((?!\_)[[:punct:]]|\s)"
+            .unwrap()
+            .split(&self.inner_string())
+            .map(|s| s.to_string())
+            .collect()
     }
     fn inner_string(&self) -> String {
         let mut bit_buffer = String::new();

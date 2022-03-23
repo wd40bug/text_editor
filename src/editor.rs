@@ -200,7 +200,13 @@ impl Editor {
                     }
                 }
             }
-            'd' => {}
+            'd' => {
+                let inner_words = self.document.rows[self.cursor_position.y - 1].get_inner_words();
+                self.message_buffer.push(format!("{:?}", inner_words))
+            }
+            'n' => {
+                self.message.time = Instant::now() - Duration::new(5, 0);
+            }
             _ => (),
         }
     }
