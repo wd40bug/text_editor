@@ -1,3 +1,2 @@
-   Compiling text_editor v0.1.0 (/Users/williamdale/Desktop/Rusty/text_editor)
-    Finished dev [unoptimized + debuginfo] target(s) in 1.24s
-     Running `target/debug/text_editor src/editor.rs`
+    Finished dev [unoptimized + debuginfo] target(s) in 0.02s
+     Running `target/debug/text_editor z`
