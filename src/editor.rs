@@ -9,7 +9,9 @@ use termion::{
     input::TermRead,
 };
 
-use crate::{document::Document, row::Row, terminal::Terminal, Position, StatusMessage};
+use crate::{
+    document::Document, highlight::Type, row::Row, terminal::Terminal, Position, StatusMessage,
+};
 
 pub struct Editor {
     should_exit: bool,
@@ -317,13 +319,26 @@ impl Editor {
             | Key::Home => self.move_cursor(key),
             _ => (),
         }
+        let mut in_comment = if let Some(row) = self.document.rows.get(self.cursor_position.y - 2) {
+            if row.highlighting.get(0) == Some(&Type::Comment) {
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         for i in -2..1 {
             if let Some(row) = self
                 .document
                 .rows
                 .get_mut((self.cursor_position.y as isize).saturating_add(i) as usize)
             {
-                row.highlight(&None, &self.document.file_type.highlight_ops.clone());
+                row.highlight(
+                    &None,
+                    &self.document.file_type.highlight_ops.clone(),
+                    &mut in_comment,
+                );
             }
         }
         Terminal::flush();

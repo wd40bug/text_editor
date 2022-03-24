@@ -43,12 +43,23 @@ impl Row {
         bit_buffer.find(&string)
     }
     #[allow(clippy::needless_continue)]
-    pub fn highlight(&mut self, word: &Option<String>, hilight_ops: &HighlightingOptions) {
+    pub fn highlight(
+        &mut self,
+        word: &Option<String>,
+        hilight_ops: &HighlightingOptions,
+        in_comment: &mut bool,
+    ) {
         let inner_string = self.inner_string();
         self.highlighting = Vec::new();
         for (i, gr) in self.content.iter().enumerate() {
             if self.highlighting.get(i).is_some() {
                 continue;
+            } else if *in_comment {
+                self.highlighting.push(Type::Comment);
+                if gr == "*" && self.content.get(i + 1) == Some(&"/".to_string()) {
+                    self.highlighting.push(Type::Comment);
+                    *in_comment = false;
+                }
             } else if hilight_ops.numbers && self.is_used_as_num(i) {
                 self.highlighting.push(Type::Number);
             } else if gr == "\"" {
@@ -92,16 +103,33 @@ impl Row {
                 for _ in i..self.content.len() {
                     self.highlighting.push(Type::Comment);
                 }
+            } else if gr == "/" && self.content.get(i + 1) == Some(&"*".to_string()) {
+                self.highlighting.push(Type::Comment);
+                *in_comment = true;
             } else {
                 self.highlighting.push(Type::None);
             }
         }
         let inner_words = self.get_inner_words();
         let mut i = 0;
-        for word in inner_words {
+        'word: for word in inner_words {
             if hilight_ops.key_words.contains(&word.to_string()) {
                 for j in 0..word.len() {
+                    if self.highlighting[j + i] != Type::None {
+                        continue 'word;
+                    }
+                }
+                for j in 0..word.len() {
                     self.highlighting[j + i] = Type::Keyword;
+                }
+            } else if hilight_ops.types.contains(&word.to_string()) {
+                for j in 0..word.len() {
+                    if self.highlighting[j + i] != Type::None {
+                        continue 'word;
+                    }
+                }
+                for j in 0..word.len() {
+                    self.highlighting[i + j] = Type::Types;
                 }
             }
             i += word.len() + 1;

@@ -11,8 +11,9 @@ pub struct Document {
 }
 impl Document {
     pub fn highlight(&mut self, word: &Option<String>) {
+        let mut in_comment = false;
         for row in &mut self.rows {
-            row.highlight(word, &self.file_type.highlight_ops.clone());
+            row.highlight(word, &self.file_type.highlight_ops.clone(), &mut in_comment);
         }
     }
     ///# Panics

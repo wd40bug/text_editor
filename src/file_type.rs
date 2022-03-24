@@ -10,6 +10,7 @@ pub struct HighlightingOptions {
     pub strings: bool,
     pub comment: bool,
     pub characters: bool,
+    pub multi_comment: bool,
     //NEITHER KEY_WORDS NOR TYPES MAY CONTAIN MULTI BYTE UNICODE!!!
     pub key_words: Vec<String>,
     pub types: Vec<String>,
@@ -34,6 +35,7 @@ impl From<PathBuf> for FileType {
                             strings: true,
                             comment: true,
                             characters: true,
+                            multi_comment: true,
                             key_words: vec![
                                 "use".to_string(),
                                 "fn".to_string(),
