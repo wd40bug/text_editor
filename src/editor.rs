@@ -319,7 +319,11 @@ impl Editor {
             | Key::Home => self.move_cursor(key),
             _ => (),
         }
-        let mut in_comment = if let Some(row) = self.document.rows.get(self.cursor_position.y - 2) {
+        let mut in_comment = if let Some(row) = self
+            .document
+            .rows
+            .get(self.cursor_position.y.saturating_sub(2))
+        {
             if row.highlighting.get(0) == Some(&Type::Comment) {
                 true
             } else {
